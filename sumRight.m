@@ -1,5 +1,4 @@
-% checks if a set in zonotope representation
-% satisfies constraints in interval representation
+% compute an upper bound on zonotope directions
 
 function sumR = sumRight(Z)
 
