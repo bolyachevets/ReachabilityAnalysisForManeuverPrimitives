@@ -117,7 +117,7 @@ X_trajectory = [];
 x_0 = reduce(x_0.ti, 'girard', 1);
 
 IC_Z_generators = get(x_0, 'Z');
-%IC_Z_generators = get(IC_Z, 'Z');
+
 % generator matrix for the initial conditions zonotope -
 % dropped the first column: center of the zonotope
 IC_Z_generators = IC_Z_generators(:, 2:length(IC_Z_generators));
@@ -135,12 +135,6 @@ Alpha_Gx4 = [];
 Alpha_Gx5 = [];
 Alpha_Gx6 = [];
 
-% store reachable set centers and generators here
-% X_reach_center = {};
-% X_reach_generators = {};
-% 
-% X_reach_center{1} = center(X_trajectory(:,1));
-% X_reach_generators{1} = IC_Z_generators;
 
 % main loop
 for i=1:number_steps
@@ -161,7 +155,7 @@ for i=1:number_steps
         
                 minimize(norm([
                     % difference between the center of the reachable set
-                    % and desired final state: the origin
+                    % and desired final state: center of the first reachable set/ initial conditions
                     center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), i) ...
                     + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Cx(:); alpha_cx] - center(IC_Z);
                     % length of generators of the reachable set
@@ -186,7 +180,8 @@ for i=1:number_steps
                     + abs((A_aug_d^i)*IC_Z_generators(:,3) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx3(:); alpha_gx3]) ...
                     + abs((A_aug_d^i)*IC_Z_generators(:,4) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx4(:); alpha_gx4]) ...
                     + abs((A_aug_d^i)*IC_Z_generators(:,5) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx5(:); alpha_gx5]) ...
-                    + abs((A_aug_d^i)*IC_Z_generators(:,6) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx6(:); alpha_gx6]) <= supremum(StateConstr)
+                    + abs((A_aug_d^i)*IC_Z_generators(:,6) ... 
+                    + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx6(:); alpha_gx6]) <= supremum(StateConstr)
 
                     (center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), i) ...
                     + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Cx(:); alpha_cx] ...
@@ -195,7 +190,8 @@ for i=1:number_steps
                     - abs((A_aug_d^i)*IC_Z_generators(:,3) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx3(:); alpha_gx3]) ...
                     - abs((A_aug_d^i)*IC_Z_generators(:,4) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx4(:); alpha_gx4]) ...
                     - abs((A_aug_d^i)*IC_Z_generators(:,5) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx5(:); alpha_gx5]) ...
-                    - abs((A_aug_d^i)*IC_Z_generators(:,6) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx6(:); alpha_gx6])) >= infimum(StateConstr)
+                    - abs((A_aug_d^i)*IC_Z_generators(:,6) ...
+                    + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx6(:); alpha_gx6])) >= infimum(StateConstr)
 
     cvx_end
 
