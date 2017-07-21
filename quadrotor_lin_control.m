@@ -184,15 +184,6 @@ IC_Z = x_0;
                 end
     cvx_end
 
-    alpha_cx
-    alpha_gx1
-    alpha_gx2
-    alpha_gx3
-    alpha_gx4
-    alpha_gx5
-    alpha_gx6
-    %abs(alpha_cx) + abs(alpha_gx1) + abs(alpha_gx2) + abs(alpha_gx3) + abs(alpha_gx4) + abs(alpha_gx5) + abs(alpha_gx6)
-
   % reconstruct the optimized reachable set using the optimal control weights
     X_reach = [];
     for i=1:number_steps
