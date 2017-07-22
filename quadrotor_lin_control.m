@@ -45,7 +45,7 @@ A_aug_c = [A, const; zeros(1, 7)];
 
 % potentially will need to get rid of the similar fields in the options
 tStart=0; %start time
-tFinal=2; %final time
+tFinal=1; %final time
 timeStep=0.1; %time step size for reachable set computation
 number_steps = (tFinal-tStart)/timeStep;
 
@@ -56,13 +56,25 @@ A_aug_d = expm(A_aug_c*timeStep);
 integrandB = @(tau) expm(A_aug_c*tau);
 B_d = integral(integrandB, 0, timeStep, 'ArrayValued', true)*B;
                     
-% had to add an extra state variable set to 0 to accomodate the augmented A
-% matrix that includes the constant term
-IC = interval([-1.2; 0.5; -0.5; -0.8; -0.1; -0.3; 0], [1.2; 1.7; 0.5; 0.8; 0.1; 0.3; 0]);
+% had to add an extra state variable set to 1 to accomodate the augmented A
+% matrix that includes the constant term: x_dot = [A c; 0]*[x; 1]'
+IC = interval([-1.2; 0.5; -0.5; -0.8; -0.1; -0.3; 1], [1.2; 1.7; 0.5; 0.8; 0.1; 0.3; 1]);
+% use this for experimentation with rescaling IC intervals
+% scaling = 0.4;
+% IC_length = supremum(IC) - infimum(IC);
+% IC = interval(infimum(IC)+scaling*IC_length, supremum(IC)-scaling*IC_length);
+
 IC_Z = zonotope(IC);
 
 % state constraints to check during reachability analysis
-StateConstr = 3*interval([-1.7; -0.3; -0.8; -1.0; -0.15; -pi/2; 0], [1.7; 2.0; 0.8; 1.0; 0.15; pi/2; 0]);
+% the last entry is for the dummy dimension in lieu of augmented matrix A:
+% it does not matter what those values are
+StateConstr = interval([-1.7; 0.3; -0.8; -1.0; -0.15; -pi/2; -1], [1.7; 2.0; 0.8; 1.0; 0.15; pi/2; 1]);
+
+% use this for experimentation with rescaling StateConstr intervals
+scaling = 1;
+StateConstr_length = supremum(StateConstr) - infimum(StateConstr);
+StateConstr = interval(infimum(StateConstr)-scaling*StateConstr_length, supremum(StateConstr)+scaling*StateConstr_length);
 
 u_control = interval([-0.5 + u_0; -pi/16], [0.5 + u_0; pi/16]);
 u_Z = zonotope(u_control);
@@ -70,13 +82,6 @@ u_Z_generators = get(u_Z, 'Z');
 % generator matrix for the control policy zonotope
 % dropped the first column: center of the zonotope
 u_Z_generators = u_Z_generators(:, 2:length(u_Z_generators));
-
-% set up a generator matrix of the reachable set to be used in the optimization problem
-% only for 1 step ahead
-GR = generator_matrix(A_aug_d, B_d, u_Z_generators, 1);
-% set up a vector for the the reachable point of the initial zonotope
-% center only for 1 step ahead
-cR = center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), 1);
 
 %specify continuous dynamics-----------------------------------------------
 quadrotor_lin_control=linearSys('quadrotor_lin_control', A_aug_d, B_d); %initialize system
@@ -107,9 +112,6 @@ for i=1:(options.taylorTerms+1)
 end
 %-------------------------------------------------------------
 
-% store trajectory of reachable sets here
-X_trajectory = [];
-
 % dilate the initial reach set to encompass potential trajectory curvature
 [x_0, ~] = initReach(quadrotor_lin_control, IC_Z, options);
 
@@ -124,109 +126,92 @@ IC_Z_generators = IC_Z_generators(:, 2:length(IC_Z_generators));
 % reset the initial conditions zonotope to the overapproximated reach set
 IC_Z = x_0;
 
-X_trajectory = horzcat(X_trajectory, x_0);
-
-% store control coefficients here
-Alpha_Cx = [];
-Alpha_Gx1 = [];
-Alpha_Gx2 = [];
-Alpha_Gx3 = [];
-Alpha_Gx4 = [];
-Alpha_Gx5 = [];
-Alpha_Gx6 = [];
-
-% store reachable set centers and generators here
-% X_reach_center = {};
-% X_reach_generators = {};
-% 
-% X_reach_center{1} = center(X_trajectory(:,1));
-% X_reach_generators{1} = IC_Z_generators;
-
 % main loop
-for i=1:number_steps
     cvx_begin
         % pairs of alpha_cx entries
         % give control policy for the center of initial condition zonotope
         % in the form of coefficients for the control zonotope generators
-        variable alpha_cx(2)
+        variable alpha_cx(2*number_steps)
         % pairs of alpha_cx entries
         % give control policy for the generators of initial condition zonotope
         % in the form of coefficients for the control zonotope generators
-        variable alpha_gx1(2)
-        variable alpha_gx2(2)
-        variable alpha_gx3(2)
-        variable alpha_gx4(2)
-        variable alpha_gx5(2)
-        variable alpha_gx6(2)
+        variable alpha_gx1(2*number_steps)
+        variable alpha_gx2(2*number_steps)
+        variable alpha_gx3(2*number_steps)
+        variable alpha_gx4(2*number_steps)
+        variable alpha_gx5(2*number_steps)
+        variable alpha_gx6(2*number_steps)
         
                 minimize(norm([
                     % difference between the center of the reachable set
-                    % and desired final state: the origin
-                    center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), i) ...
-                    + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Cx(:); alpha_cx] - center(IC_Z);
+                    % and desired final state: the origin/ or center of
+                    % initial set
+                    center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), number_steps) ...
+                    + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_cx), 2) - center(IC_Z);
                     % length of generators of the reachable set
-                    (A_aug_d^i)*IC_Z_generators(:,1) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx1(:); alpha_gx1];
-                    (A_aug_d^i)*IC_Z_generators(:,2) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx2(:); alpha_gx2];
-                    (A_aug_d^i)*IC_Z_generators(:,3) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx3(:); alpha_gx3];
-                    (A_aug_d^i)*IC_Z_generators(:,4) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx4(:); alpha_gx4];
-                    (A_aug_d^i)*IC_Z_generators(:,5) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx5(:); alpha_gx5]; 
-                    (A_aug_d^i)*IC_Z_generators(:,6) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx6(:); alpha_gx6]], 1))
+                    (A_aug_d^number_steps)*IC_Z_generators(:,1) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_gx1), 2);
+                    (A_aug_d^number_steps)*IC_Z_generators(:,2) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_gx2), 2);
+                    (A_aug_d^number_steps)*IC_Z_generators(:,3) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_gx3), 2);
+                    (A_aug_d^number_steps)*IC_Z_generators(:,4) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_gx4), 2);
+                    (A_aug_d^number_steps)*IC_Z_generators(:,5) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_gx5), 2); 
+                    (A_aug_d^number_steps)*IC_Z_generators(:,6) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_gx6), 2)], 1))
                 
                 subject to
-%                     abs(alpha_cx(1)) + abs(alpha_cx(2)) + abs(alpha_gx1(1)) + abs(alpha_gx1(2)) ...
-%                     + abs(alpha_gx2(1)) + abs(alpha_gx2(2)) + abs(alpha_gx3(1)) + abs(alpha_gx3(2)) ...
-%                     + abs(alpha_gx4(1)) + abs(alpha_gx4(2)) + abs(alpha_gx5(1)) + abs(alpha_gx5(2)) ...
-%                     + abs(alpha_gx6(1)) + abs(alpha_gx6(2)) <= 1
+                    abs(alpha_cx) + abs(alpha_gx1) + abs(alpha_gx2) + abs(alpha_gx3) ...
+                    + abs(alpha_gx4) + abs(alpha_gx5) + abs(alpha_gx6) <= 1
                    
+                for i=1:number_steps
                 
                      center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), i) ...
-                    + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Cx(:); alpha_cx] ...
-                    + abs((A_aug_d^i)*IC_Z_generators(:,1) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx1(:); alpha_gx1]) ...
-                    + abs((A_aug_d^i)*IC_Z_generators(:,2) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx2(:); alpha_gx2]) ...
-                    + abs((A_aug_d^i)*IC_Z_generators(:,3) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx3(:); alpha_gx3]) ...
-                    + abs((A_aug_d^i)*IC_Z_generators(:,4) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx4(:); alpha_gx4]) ...
-                    + abs((A_aug_d^i)*IC_Z_generators(:,5) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx5(:); alpha_gx5]) ...
-                    + abs((A_aug_d^i)*IC_Z_generators(:,6) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx6(:); alpha_gx6]) <= supremum(StateConstr)
+                    + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_cx(1:2*i)), 2) ...
+                    + abs((A_aug_d^i)*IC_Z_generators(:,1) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx1(1:2*i)), 2)) ...
+                    + abs((A_aug_d^i)*IC_Z_generators(:,2) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx2(1:2*i)), 2)) ...
+                    + abs((A_aug_d^i)*IC_Z_generators(:,3) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx3(1:2*i)), 2)) ...
+                    + abs((A_aug_d^i)*IC_Z_generators(:,4) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx4(1:2*i)), 2)) ...
+                    + abs((A_aug_d^i)*IC_Z_generators(:,5) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx5(1:2*i)), 2)) ...
+                    + abs((A_aug_d^i)*IC_Z_generators(:,6) ...
+                    + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx6(1:2*i)), 2)) <= supremum(StateConstr)
 
-                    (center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), i) ...
-                    + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Cx(:); alpha_cx] ...
-                    - abs((A_aug_d^i)*IC_Z_generators(:,1) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx1(:); alpha_gx1]) ...
-                    - abs((A_aug_d^i)*IC_Z_generators(:,2) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx2(:); alpha_gx2]) ...
-                    - abs((A_aug_d^i)*IC_Z_generators(:,3) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx3(:); alpha_gx3]) ...
-                    - abs((A_aug_d^i)*IC_Z_generators(:,4) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx4(:); alpha_gx4]) ...
-                    - abs((A_aug_d^i)*IC_Z_generators(:,5) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx5(:); alpha_gx5]) ...
-                    - abs((A_aug_d^i)*IC_Z_generators(:,6) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*[Alpha_Gx6(:); alpha_gx6])) >= infimum(StateConstr)
-
+                      center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), i) ...
+                    + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_cx(1:2*i)), 2) ...
+                    - abs((A_aug_d^i)*IC_Z_generators(:,1) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx1(1:2*i)), 2)) ...
+                    - abs((A_aug_d^i)*IC_Z_generators(:,2) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx2(1:2*i)), 2)) ...
+                    - abs((A_aug_d^i)*IC_Z_generators(:,3) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx3(1:2*i)), 2)) ...
+                    - abs((A_aug_d^i)*IC_Z_generators(:,4) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx4(1:2*i)), 2)) ...
+                    - abs((A_aug_d^i)*IC_Z_generators(:,5) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx5(1:2*i)), 2)) ...
+                    - abs((A_aug_d^i)*IC_Z_generators(:,6) ...
+                    - sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx6(1:2*i)), 2)) >= infimum(StateConstr)
+                end
     cvx_end
 
-    % concatenate control generator coefficients from the last iteration into the coefficient
-    % matrix
-    Alpha_Cx = horzcat(Alpha_Cx, alpha_cx);
-    Alpha_Gx1 = horzcat(Alpha_Gx1, alpha_gx1);
-    Alpha_Gx2 = horzcat(Alpha_Gx2, alpha_gx2);
-    Alpha_Gx3 = horzcat(Alpha_Gx3, alpha_gx3);
-    Alpha_Gx4 = horzcat(Alpha_Gx4, alpha_gx4);
-    Alpha_Gx5 = horzcat(Alpha_Gx5, alpha_gx5);
-    Alpha_Gx6 = horzcat(Alpha_Gx6, alpha_gx6);
+    alpha_cx
+    alpha_gx1
+    alpha_gx2
+    alpha_gx3
+    alpha_gx4
+    alpha_gx5
+    alpha_gx6
+    %abs(alpha_cx) + abs(alpha_gx1) + abs(alpha_gx2) + abs(alpha_gx3) + abs(alpha_gx4) + abs(alpha_gx5) + abs(alpha_gx6)
+
+  % reconstruct the optimized reachable set using the optimal control weights
+    X_reach = [];
+    for i=1:number_steps
+        X_new_center = center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), i) ...
+                        + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_cx(1:2*i)), 2);
+        X_new_gx1 = (A_aug_d^i)*IC_Z_generators(:,1) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx1(1:2*i)), 2);
+        X_new_gx2 = (A_aug_d^i)*IC_Z_generators(:,2) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx2(1:2*i)), 2);
+        X_new_gx3 = (A_aug_d^i)*IC_Z_generators(:,3) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx3(1:2*i)), 2);
+        X_new_gx4 = (A_aug_d^i)*IC_Z_generators(:,4) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx4(1:2*i)), 2);
+        X_new_gx5 = (A_aug_d^i)*IC_Z_generators(:,5) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx5(1:2*i)), 2);
+        X_new_gx6 = (A_aug_d^i)*IC_Z_generators(:,6) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx6(1:2*i)), 2);
+
+        X_new_zonotope_mat = horzcat(X_new_center, X_new_gx1, X_new_gx2, X_new_gx3, X_new_gx4, X_new_gx5, X_new_gx6);
+        X_new_zonotope = zonotope(X_new_zonotope_mat);
+
+        X_reach = horzcat(X_new_zonotope, X_reach);   
+    end
+    X_reach = horzcat(x_0, X_reach);
     
-    % evolve the generators of state space over time step with the new coefficients
-    X_new_center = center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), i) ...
-                    + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*Alpha_Cx(:);
-    X_new_gx1 = (A_aug_d^i)*IC_Z_generators(:,1) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*Alpha_Gx1(:);
-    X_new_gx2 = (A_aug_d^i)*IC_Z_generators(:,2) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*Alpha_Gx2(:);
-    X_new_gx3 = (A_aug_d^i)*IC_Z_generators(:,3) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*Alpha_Gx3(:);
-    X_new_gx4 = (A_aug_d^i)*IC_Z_generators(:,4) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*Alpha_Gx4(:);
-    X_new_gx5 = (A_aug_d^i)*IC_Z_generators(:,5) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*Alpha_Gx5(:);
-    X_new_gx6 = (A_aug_d^i)*IC_Z_generators(:,6) + generator_matrix(A_aug_d, B_d, u_Z_generators, i)*Alpha_Gx6(:);
-    
-    X_new_zonotope_mat = horzcat(X_new_center, X_new_gx1, X_new_gx2, X_new_gx3, X_new_gx4, X_new_gx5, X_new_gx6);
-    X_new_zonotope = zonotope(X_new_zonotope_mat);
-
-    X_trajectory = horzcat(X_trajectory, X_new_zonotope);   
-end
-
-% need to add convex hull of all zonotopes
-
 for plotRun=1:3
     % plot different projections
     if plotRun==1
@@ -240,16 +225,18 @@ for plotRun=1:3
     figure;
     hold on
     
-    %plot reachable sets 
-    for i=1:length(X_trajectory)
-        plotFilled(X_trajectory(:,i),projectedDimensions,[.8 .8 .8],'EdgeColor','none');
+    for i=1:length(X_reach)
+        %plot reachable sets 
+        plotFilled(X_reach(:,i),projectedDimensions,[.8 .8 .8],'EdgeColor','none');
+        %plot reachable set contours
+        plot(X_reach(:, i),projectedDimensions,'r-','lineWidth',2);
     end
+    
+    %plot final reachable set contour
+    plot(X_reach(:, length(X_reach)),projectedDimensions,'b-','lineWidth',4);
     
     %plot initial reachable set
     plot(x_0,projectedDimensions,'b-','lineWidth',2);
-    
-    %plot final reachable set
-    %plot(X_trajectory(:, length(X_trajectory)),projectedDimensions,'r-','lineWidth',2);
     
     %plot constraint set
     plot(StateConstr,projectedDimensions,'g-','lineWidth',2);
