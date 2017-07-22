@@ -99,7 +99,7 @@ options.zonotopeOrder=200; %zonotope order
 options.originContained=0;
 options.reductionTechnique='girard';
 options.path = [coraroot '/contDynamics/stateSpaceModels'];
-
+% not sure if this is OK
 options.uTrans=center(u_Z);
 
 %------ from the reach.m method, otherwise initReach complains
@@ -118,7 +118,6 @@ end
 % reduce number of generators in the first reach set
 x_0 = reduce(x_0.ti, 'girard', 1);
 
-<<<<<<< HEAD
 % disabled dialation for now...
 
 %IC_Z_generators = get(x_0, 'Z');
@@ -130,15 +129,6 @@ IC_Z_generators = IC_Z_generators(:, 2:length(IC_Z_generators));
 
 % reset the initial conditions zonotope to the overapproximated reach set
 %IC_Z = x_0;
-=======
-IC_Z_generators = get(x_0, 'Z');
-%IC_Z_generators = get(IC_Z, 'Z');
-% generator matrix for the initial conditions zonotope -
-% dropped the first column: center of the zonotope
-IC_Z_generators = IC_Z_generators(:, 2:length(IC_Z_generators));
-% reset the initial conditions zonotope to the overapproximated reach set
-IC_Z = x_0;
->>>>>>> origin/master
 
 % main loop
     cvx_begin
@@ -161,11 +151,7 @@ IC_Z = x_0;
                     % and desired final state: the origin/ or center of
                     % initial set
                     center_reach(A_aug_d, B_d, center(IC_Z), center(u_Z), number_steps) ...
-<<<<<<< HEAD
                     + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_cx), 2)  - center(IC_Z);
-=======
-                    + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_cx), 2) - center(IC_Z);
->>>>>>> origin/master
                     % length of generators of the reachable set
                     (A_aug_d^number_steps)*IC_Z_generators(:,1) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_gx1), 2);
                     (A_aug_d^number_steps)*IC_Z_generators(:,2) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, number_steps, alpha_gx2), 2);
@@ -199,11 +185,9 @@ IC_Z = x_0;
                     - abs((A_aug_d^i)*IC_Z_generators(:,5) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx5(1:2*i)), 2)) ...
                     - abs((A_aug_d^i)*IC_Z_generators(:,6) ...
                     - sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx6(1:2*i)), 2)) >= infimum(StateConstr)
-<<<<<<< HEAD
-                end               
-=======
                 end
->>>>>>> origin/master
+                
+             
     cvx_end
 
   % reconstruct the optimized reachable set using the optimal control weights
@@ -239,8 +223,6 @@ for plotRun=1:3
     hold on  
    
     for i=1:length(X_reach)
-        %plot reachable sets 
-        %plotFilled(X_reach(:,i),projectedDimensions,[.8 .8 .8],'EdgeColor','none');
         %plot reachable set contours
         plot(X_reach(:, i),projectedDimensions,'r-','lineWidth',2);
     end
