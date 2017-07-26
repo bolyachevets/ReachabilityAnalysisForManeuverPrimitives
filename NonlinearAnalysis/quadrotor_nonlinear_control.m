@@ -1,11 +1,5 @@
 function quadrotor_nonlinear_control()
-%global K m g
-K = 0.89;
-m = 1.4;
-n0 = 55;
-d0 = 70;
-d1 = 17;
-g = 9.81;
+global K m g
 
 % TIME
 %----------------------------------------------------------------------
