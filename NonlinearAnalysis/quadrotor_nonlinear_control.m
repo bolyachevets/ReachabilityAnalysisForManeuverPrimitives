@@ -60,15 +60,12 @@ u_ref = optimalControl(center(IC_Z),ulb, uub, u0, timeStep, number_steps, xf);
 IC_augmented = interval([-1.2; 0.5; -0.5; -0.8; -0.1; -0.3; 1], [1.2; 1.7; 0.5; 0.8; 0.1; 0.3; 1]);
 IC_Z_augmented = zonotope(IC_augmented);
 
-%IC_Z_augmented_generators = get(IC_Z_augmented, 'Z');
-%IC_Z_augmented_generators = IC_Z_augmented_generators(:, 2:length(IC_Z_augmented_generators));
-
 % state constraints to check during reachability analysis
 % the last entry is for the dummy dimension in lieu of augmented matrix A:
 % it does not matter what those values are
 StateConstr = interval([-1.7; 0.3; -0.8; -1.0; -0.15; -pi/2; -1], [1.7; 2.0; 0.8; 1.0; 0.15; pi/2; 1]);
 % use this for experimentation with rescaling StateConstr intervals
-scaling = 0.5;
+scaling = 1;
 StateConstr_length = supremum(StateConstr) - infimum(StateConstr);
 StateConstr = interval(infimum(StateConstr)-scaling*StateConstr_length, supremum(StateConstr)+scaling*StateConstr_length);
 %----------------------------------------------------------------------
@@ -104,11 +101,12 @@ for i = 1:number_steps
    
    % intermediate target xf
    xf = eulers_solution(center(IC_Z), u_ref, timeStep, i);
+   % add extra dimension because dynamimcs matrices have been augmented
    xf = vertcat(xf, 1);
             
    X_reach_temp = quadrotor_linearized_dynamics(A_aug_d, B_d, IC_Z_augmented, u_Z, u_Z_generators, StateConstr, number_small_steps, xf);
    X_reach = horzcat(X_reach, X_reach_temp);
-   %newIC_Zmat = horzcat(xf, IC_Z_augmented_generators);
+   % set up initial conditions for the next linearization interval
    IC_Z_augmented = X_reach_temp(:, length(X_reach_temp));
    j = j+2;
 end 
