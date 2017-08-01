@@ -1,8 +1,5 @@
 function quadrotor_nonlinear_control()
 global K m g
-K = 0.89;
-m = 1.4;
-g = 9.81;
 
 % TIME
 %----------------------------------------------------------------------
@@ -27,7 +24,6 @@ IC_length = supremum(IC) - infimum(IC);
 IC = interval(infimum(IC)+scaling*IC_length, supremum(IC)-scaling*IC_length);
 IC_Z = zonotope(IC);
 %----------------------------------------------------------------------
-
 
 % CONTROL SET
 %----------------------------------------------------------------------
@@ -54,7 +50,6 @@ StateConstr = interval([-1.7; 0.3; -0.8; -1.0; -0.15; -pi/2], [1.7; 2.0; 0.8; 1.
 % controls for reference trajectory
 u_ref = optimalControl(center(IC_Z),ulb, uub, u0, timeStep, number_steps, StateConstr, xf);
 %----------------------------------------------------------------------
-
 
 % AUGMENT STATE SPACE TO INCORPORATE CONSTANT TERM
 %----------------------------------------------------------------------
