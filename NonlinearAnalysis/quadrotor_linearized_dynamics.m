@@ -84,9 +84,10 @@ cvx_end
         X_new_zonotope_mat = horzcat(X_new_center, X_new_gx1, X_new_gx2, X_new_gx3, X_new_gx4, X_new_gx5, X_new_gx6);
         X_new_zonotope = zonotope(X_new_zonotope_mat);
         
+        % compute max values of second derivatives for each equation in the ODE
         [x3_H, x4_H] = max2Der(u1_bar, x5_bar, X_new_zonotope);
         
-        % will need to add the errorBound to the constraints    centerX, x5_bar, Gx, centerU, u1_bar, Gu           
+        % add error bound vector to the reachable set       
         X_new_zonotope_mat = horzcat(X_new_zonotope_mat, computeErrorBound(computeGamma(X_new_center, x5_bar, X_new_zonotope_mat, ...
             center(u_Z), u1_bar, u_Z_generators), x3_H, x4_H));
         
