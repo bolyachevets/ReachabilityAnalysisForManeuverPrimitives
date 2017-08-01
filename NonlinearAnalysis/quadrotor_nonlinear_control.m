@@ -5,12 +5,12 @@ global K m g
 %----------------------------------------------------------------------
 % potentially will need to get rid of the similar fields in the options
 tStart=0; %start time
-tFinal=1; %final time
-timeStep=0.1; %time step size for reachable set computation
+tFinal=2; %final time
+timeStep=0.2; %time step size for reachable set computation
 % number of linearization points
 number_steps = (tFinal-tStart)/timeStep;
 % number of steps at each linearization
-number_small_steps = 10;
+number_small_steps = 2;
 %----------------------------------------------------------------------
 
 % INITIAL CONDITIONS
@@ -43,10 +43,10 @@ u_Z_generators = u_Z_generators(:, 2:length(u_Z_generators));
 % REFERENCE TRAJECTORY
 %----------------------------------------------------------------------
 % optimization problem interior solution guess
-u0 = [9.8; 0];
+u0 = [g*m/K; 0];
 % testing target location to steer the center of IC towards
-xf = center(IC_Z);
-%xf = [2; 2; 0.2; 0.2; 0; 0];
+%xf = center(IC_Z);
+xf = [-5; 5; -1.6; 0.2; 0; 0];
 
 % controls for reference trajectory
 u_ref = optimalControl(center(IC_Z),ulb, uub, u0, timeStep, number_steps, xf);
