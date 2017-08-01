@@ -1,10 +1,13 @@
-function [X_reach_temp] = quadrotor_linearized_dynamics(A_aug_d, B_d, IC, u_Z, u_Z_generators, StateConstr, number_steps, xf)
+function [X_reach_temp] = quadrotor_linearized_dynamics(A_aug_d, B_d, IC, u_Z, u_Z_generators, ...
+    StateConstr, number_steps, xf, u1_bar, x5_bar, timeStep)
 
-IC_Z = zonotope(IC);  
+IC_Z = zonotope(IC); 
+
 IC_Z_generators = get(IC_Z, 'Z');
 % generator matrix for the initial conditions zonotope -
 % dropped the first column: center of the zonotope
 IC_Z_generators = IC_Z_generators(:, 2:length(IC_Z_generators));
+
 
 % main loop
 cvx_begin
@@ -62,6 +65,8 @@ cvx_begin
                     - abs((A_aug_d^i)*IC_Z_generators(:,5) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx5(1:2*i)), 2)) ...
                     - abs((A_aug_d^i)*IC_Z_generators(:,6) ...
                     - sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx6(1:2*i)), 2)) >= infimum(StateConstr)
+                
+                
                 end             
 cvx_end
 
@@ -76,8 +81,15 @@ cvx_end
         X_new_gx4 = (A_aug_d^i)*IC_Z_generators(:,4) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx4(1:2*i)), 2);
         X_new_gx5 = (A_aug_d^i)*IC_Z_generators(:,5) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx5(1:2*i)), 2);
         X_new_gx6 = (A_aug_d^i)*IC_Z_generators(:,6) + sum(generator_matrix(A_aug_d, B_d, u_Z_generators, i, alpha_gx6(1:2*i)), 2);
-
         X_new_zonotope_mat = horzcat(X_new_center, X_new_gx1, X_new_gx2, X_new_gx3, X_new_gx4, X_new_gx5, X_new_gx6);
+        X_new_zonotope = zonotope(X_new_zonotope_mat);
+        
+        [x3_H, x4_H] = max2Der(u1_bar, x5_bar, X_new_zonotope);
+        
+        % will need to add the errorBound to the constraints    centerX, x5_bar, Gx, centerU, u1_bar, Gu           
+        X_new_zonotope_mat = horzcat(X_new_zonotope_mat, computeErrorBound(computeGamma(X_new_center, x5_bar, X_new_zonotope_mat, ...
+            center(u_Z), u1_bar, u_Z_generators), x3_H, x4_H));
+        
         X_new_zonotope = zonotope(X_new_zonotope_mat);
 
         X_reach_temp = horzcat(X_reach_temp, X_new_zonotope);   

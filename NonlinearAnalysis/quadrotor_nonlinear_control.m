@@ -1,16 +1,19 @@
 function quadrotor_nonlinear_control()
 global K m g
+K = 0.89;
+m = 1.4;
+g = 9.81;
 
 % TIME
 %----------------------------------------------------------------------
 % potentially will need to get rid of the similar fields in the options
 tStart=0; %start time
 tFinal=2; %final time
-timeStep=0.2; %time step size for reachable set computation
+timeStep=0.1; %time step size for reachable set computation
 % number of linearization points
 number_steps = (tFinal-tStart)/timeStep;
 % number of steps at each linearization
-number_small_steps = 2;
+number_small_steps = 4;
 %----------------------------------------------------------------------
 
 % INITIAL CONDITIONS
@@ -43,13 +46,13 @@ u_Z_generators = u_Z_generators(:, 2:length(u_Z_generators));
 % REFERENCE TRAJECTORY
 %----------------------------------------------------------------------
 % optimization problem interior solution guess
-u0 = [g*m/K; 0];
+u0 = [u_0; 0];
 % testing target location to steer the center of IC towards
 %xf = center(IC_Z);
 xf = [-5; 5; -1.6; 0.2; 0; 0];
-
+StateConstr = interval([-1.7; 0.3; -0.8; -1.0; -0.15; -pi/2], [1.7; 2.0; 0.8; 1.0; 0.15; pi/2]);
 % controls for reference trajectory
-u_ref = optimalControl(center(IC_Z),ulb, uub, u0, timeStep, number_steps, xf);
+u_ref = optimalControl(center(IC_Z),ulb, uub, u0, timeStep, number_steps, StateConstr, xf);
 %----------------------------------------------------------------------
 
 
@@ -83,7 +86,7 @@ for i = 1:number_steps
    X_int_lin = eulers_solution(center(IC_Z), u_ref, timeStep, i-1);
    % we are linearize in the middle of the subinterval
    X_int_lin = eulers_solution(X_int_lin, u_ref(j:j+1), timeStep/2, 1);
-   
+
    % update transition matrices at the new linearization points
    A = computeA(u_ref(j), X_int_lin(5));
    B = computeB(X_int_lin(5));
@@ -103,8 +106,11 @@ for i = 1:number_steps
    xf = eulers_solution(center(IC_Z), u_ref, timeStep, i);
    % add extra dimension because dynamimcs matrices have been augmented
    xf = vertcat(xf, 1);
-            
-   X_reach_temp = quadrotor_linearized_dynamics(A_aug_d, B_d, IC_Z_augmented, u_Z, u_Z_generators, StateConstr, number_small_steps, xf);
+               
+   X_reach_temp = quadrotor_linearized_dynamics(A_aug_d, B_d, IC_Z_augmented, ...
+       u_Z, u_Z_generators, StateConstr, number_small_steps, xf, ...
+       u_ref(j), X_int_lin(5), timeStep);
+   
    X_reach = horzcat(X_reach, X_reach_temp);
    % set up initial conditions for the next linearization interval
    IC_Z_augmented = X_reach_temp(:, length(X_reach_temp));

@@ -1,8 +1,10 @@
 % Optimization problem to find reference trajectory for the quadrotor
 % motion starting at the center of initial set and ending as close as
 % possible to the target location, while satisfying state constraints
+% (hence nonlinear constraint passed as an additional argument to the
+% optimizer)
 
-function u = optimalControl(IC, ulb, uub, u0, delta_t, N, xf)
+function u = optimalControl(IC, ulb, uub, u0, delta_t, N, StateConstr, xf)
 
     % control weights
     % gamma = 1;
@@ -20,6 +22,7 @@ function u = optimalControl(IC, ulb, uub, u0, delta_t, N, xf)
     Aeq = [];
     beq = [];
     
-    u = fmincon(obj_fun,u0,A,b,Aeq,beq,lb,ub);
+    u = fmincon(obj_fun,u0,A,b,Aeq,beq,lb,ub,@(u)confun(IC, StateConstr, u, delta_t, N));
+    %u = fmincon(obj_fun,u0,A,b,Aeq,beq,lb,ub);
 
 end 
