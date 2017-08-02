@@ -28,7 +28,6 @@ IC = interval(infimum(IC)+scaling*IC_length, supremum(IC)-scaling*IC_length);
 IC_Z = zonotope(IC);
 %----------------------------------------------------------------------
 
-
 % CONTROL SET
 %----------------------------------------------------------------------
 % base thrust

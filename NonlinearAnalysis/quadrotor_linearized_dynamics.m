@@ -99,9 +99,7 @@ cvx_end
         X_new_zonotope_mat = horzcat(X_new_center, X_new_gx1, X_new_gx2, X_new_gx3, X_new_gx4, X_new_gx5, X_new_gx6);
         X_new_zonotope = zonotope(X_new_zonotope_mat);
         
-        %[x3_H, x4_H] = max2Der(u1_bar, x5_bar, X_new_zonotope, u_Z);
-     
-        % will need to add the errorBound to the constraints    centerX, x5_bar, Gx, centerU, u1_bar, Gu           
+        % will need to add the errorBound to the constraints         
         X_new_zonotope_mat = horzcat(X_new_zonotope_mat, computeErrorBound(u1_bar, x5_bar, X_new_zonotope, u_Z));
         
         X_new_zonotope = zonotope(X_new_zonotope_mat);
